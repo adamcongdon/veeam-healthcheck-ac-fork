@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
@@ -64,7 +65,7 @@ namespace VeeamHealthCheck.Functions.Collection
             // const int LOGON32_LOGON_INTERACTIVE = 2;
             const int LOGON32_LOGON_INTERACTIVE = 9;
 
-            string password = null;
+            using var securePassword = new SecureString();
             while (true)
             {
                 var key = System.Console.ReadKey(true);
@@ -72,9 +73,24 @@ namespace VeeamHealthCheck.Functions.Collection
                 {
                     break;
                 }
+                securePassword.AppendChar(key.KeyChar);
+            }
+            securePassword.MakeReadOnly();
 
-
-                password += key.KeyChar;
+            // Convert to plain string only for the LogonUser API call, then clear
+            IntPtr unmanagedString = IntPtr.Zero;
+            string password = null;
+            try
+            {
+                unmanagedString = Marshal.SecureStringToGlobalAllocUnicode(securePassword);
+                password = Marshal.PtrToStringUni(unmanagedString);
+            }
+            finally
+            {
+                if (unmanagedString != IntPtr.Zero)
+                {
+                    Marshal.ZeroFreeGlobalAllocUnicode(unmanagedString);
+                }
             }
 
             Console.WriteLine("Executing...");

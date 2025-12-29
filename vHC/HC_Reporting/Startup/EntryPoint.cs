@@ -6,11 +6,36 @@ using VeeamHealthCheck.Shared;
 
 namespace VeeamHealthCheck.Startup
 {
+    /// <summary>
+    /// Application entry point and bootstrap logic for Veeam Health Check.
+    /// </summary>
+    /// <remarks>
+    /// Configures bundle extraction on startup to support single-file
+    /// deployments, then parses arguments and initializes the program.
+    /// </remarks>
     public class EntryPoint
     {
         private static readonly CClientFunctions functions = new();
 
         [STAThread]
+        /// <summary>
+        /// Starts the application, parses command-line arguments, and
+        /// runs the main initialization routine.
+        /// </summary>
+        /// <param name="args">Command-line arguments.</param>
+        /// <returns>
+        /// <c>0</c> on success; <c>1</c> if an unrecoverable error occurs.
+        /// </returns>
+        /// <remarks>
+        /// Ensures a valid bundle extraction path for single-file
+        /// executables before initializing core services.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// // Example: run with custom args
+        /// return EntryPoint.Main(new[]{"--mode", "report"});
+        /// </code>
+        /// </example>
         public static int Main(string[] args)
         {
             // Fix for single-file extraction: ensure .NET can extract embedded files
@@ -27,6 +52,19 @@ namespace VeeamHealthCheck.Startup
                 CGlobals.Logger.Info("The result is: " + res, true);
                 return 0;
             }
+            catch (HealthCheckExitException exitEx)
+            {
+                // Controlled exit - log appropriately based on exit code
+                if (exitEx.IsError)
+                {
+                    CGlobals.Logger.Error($"Application exiting: {exitEx.Message}");
+                }
+                else
+                {
+                    CGlobals.Logger.Info($"Application exiting: {exitEx.Message}", true);
+                }
+                return exitEx.ExitCode;
+            }
             catch (Exception ex) {
                 CGlobals.Logger.Error("Exception occurred: " + ex.Message);
                 CGlobals.Logger.Error("Stack trace: " + ex.StackTrace);
@@ -41,6 +79,10 @@ namespace VeeamHealthCheck.Startup
             }
         }
         
+        /// <summary>
+        /// Ensures DOTNET_BUNDLE_EXTRACT_BASE_DIR is set to a valid path
+        /// so single-file apps can extract embedded resources reliably.
+        /// </summary>
         private static void EnsureBundleExtractionPath()
         {
             try

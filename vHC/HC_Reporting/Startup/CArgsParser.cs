@@ -12,6 +12,14 @@ using VeeamHealthCheck.Shared.Logging;
 
 namespace VeeamHealthCheck.Startup
 {
+    /// <summary>
+    /// Parses command-line arguments and coordinates program startup paths
+    /// including GUI launch, CLI runs, and remote execution.
+    /// </summary>
+    /// <remarks>
+    /// Supports switches like <c>/run</c>, <c>/gui</c>, <c>/security</c>,
+    /// <c>/remote</c>, and configuration flags for days, scrub, and exports.
+    /// </remarks>
     internal class CArgsParser
     {
         [DllImport("kernel32.dll")]
@@ -26,12 +34,26 @@ namespace VeeamHealthCheck.Startup
         private readonly string[] args;
         private readonly CClientFunctions functions = new();
 
+        /// <summary>
+        /// Initializes the parser with raw command-line arguments.
+        /// </summary>
+        /// <param name="args">Command-line arguments array.</param>
         public CArgsParser(string[] args)
         {
             this.args = args;
             CGlobals.TOOLSTART = DateTime.Now;
         }
 
+        /// <summary>
+        /// Entry routine for argument-driven startup.
+        /// </summary>
+        /// <returns>
+        /// <c>0</c> on success; non-zero on failure or early exit.
+        /// </returns>
+        /// <remarks>
+        /// When no arguments are provided, the GUI is launched.
+        /// Otherwise, CLI modes are invoked based on parsed switches.
+        /// </remarks>
         public int InitializeProgram()
         {
             // CGlobals.RunFullReport = true;
@@ -92,6 +114,11 @@ namespace VeeamHealthCheck.Startup
         //        return 0;
         //    }
         // }
+        /// <summary>
+        /// Parses all supported arguments and executes the requested mode.
+        /// </summary>
+        /// <param name="args">Command-line arguments.</param>
+        /// <returns>Process exit code indicating success or error.</returns>
         private int ParseAllArgs(string[] args)
         {
             bool run = false;
@@ -239,7 +266,7 @@ namespace VeeamHealthCheck.Startup
                 {
                     CGlobals.Logger.Warning("Remote execution selected but no host defined. Please define host: " +
                         "/host=HOSTNAME", false);
-                    Environment.Exit(0);
+                    throw new HealthCheckExitException(0, "Remote execution selected but no host defined");
                 }
 
                 // else if(CGlobals.REMOTEEXEC && !CGlobals.RunSecReport)
@@ -262,7 +289,7 @@ namespace VeeamHealthCheck.Startup
                     if (this.functions.ModeCheck() == "fail")
                     {
                         CGlobals.Logger.Error("No compatible software detected or remote host specified. Exiting.", false);
-                        Environment.Exit(0);
+                        throw new HealthCheckExitException(0, "No compatible software detected or remote host specified");
                     }
                     else
                         result = this.FullRun(targetDir);
@@ -272,6 +299,11 @@ namespace VeeamHealthCheck.Startup
             return result;
         }
 
+        /// <summary>
+        /// Extracts the value component from an argument with <c>key=value</c> syntax.
+        /// </summary>
+        /// <param name="input">Raw argument text.</param>
+        /// <returns>The parsed value; <c>null</c> if invalid.</returns>
         private string ParsePath(string input)
         {
             try
@@ -286,12 +318,22 @@ namespace VeeamHealthCheck.Startup
             }
         }
 
+        /// <summary>
+        /// Executes the CLI flow for report generation to the target directory.
+        /// </summary>
+        /// <param name="targetDir">Output directory for reports.</param>
+        /// <returns>Exit code from downstream processing.</returns>
         private int Run(string targetDir)
         {
             CClientFunctions functions = new();
             return functions.CliRun(targetDir);
         }
 
+        /// <summary>
+        /// End-to-end CLI execution including collections, analysis, and output.
+        /// </summary>
+        /// <param name="targetDir">Output directory for artifacts.</param>
+        /// <returns>0 on success; non-zero on failure.</returns>
         private int FullRun(string targetDir)
         {
             CGlobals.Logger.Info("Starting RUN...", false);

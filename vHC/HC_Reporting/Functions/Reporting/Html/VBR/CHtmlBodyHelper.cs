@@ -7,6 +7,15 @@ using VeeamHealthCheck.Shared.Logging;
 
 namespace VeeamHealthCheck.Functions.Reporting.Html.VBR
 {
+    /// <summary>
+    /// Builds the HTML body for VBR reports by composing
+    /// standardized tables and sections from collected data.
+    /// </summary>
+    /// <remarks>
+    /// The helper maintains an internal HTML buffer and appends
+    /// sections in a deterministic order. When <c>scrub</c> mode is
+    /// enabled, sensitive values are masked in generated tables.
+    /// </remarks>
     internal class CHtmlBodyHelper
     {
         private string HTMLSTRING;
@@ -15,6 +24,10 @@ namespace VeeamHealthCheck.Functions.Reporting.Html.VBR
         private readonly CLogger log = CGlobals.Logger;
         private readonly string logStart = "[VbrHtmlBodyHelper]\t";
 
+        /// <summary>
+        /// Initializes a new instance of <see cref="CHtmlBodyHelper"/>,
+        /// prepares table builders, and loads CSV data into memory.
+        /// </summary>
         public CHtmlBodyHelper()
         {
             this.log.Info(this.logStart + ">>> ENTERING CHtmlBodyHelper constructor <<<");
@@ -25,6 +38,25 @@ namespace VeeamHealthCheck.Functions.Reporting.Html.VBR
             this.log.Info(this.logStart + "CHtmlBodyHelper constructor completed.");
         }
 
+        /// <summary>
+        /// Generates the full VBR report body by appending all
+        /// standard sections and tables to the provided HTML.
+        /// </summary>
+        /// <param name="htmlString">The initial HTML to append to.</param>
+        /// <param name="scrub">If true, masks sensitive values.</param>
+        /// <returns>The complete HTML report body.</returns>
+        /// <remarks>
+        /// Sections include licensing, security and server summaries,
+        /// configuration tables, repository details, and job/session
+        /// summaries. Section order is fixed to ensure consistency
+        /// across exports.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var helper = new CHtmlBodyHelper();
+        /// var html = helper.FormVbrFullReport("<div id='report'></div>", scrub: true);
+        /// </code>
+        /// </example>
         public string FormVbrFullReport(string htmlString, bool scrub)
         {
             this.log.Info(this.logStart + ">>> ENTERING FormVbrFullReport() method <<<");
@@ -113,6 +145,12 @@ namespace VeeamHealthCheck.Functions.Reporting.Html.VBR
             this.log.Info(this.logStart + "PopulateCsvToMemory completed.");
         }
 
+        /// <summary>
+        /// Generates the security-focused report body, appending
+        /// relevant security tables and summaries to the provided HTML.
+        /// </summary>
+        /// <param name="htmlString">The initial HTML to append to.</param>
+        /// <returns>HTML augmented with security report content.</returns>
         public string FormSecurityReport(string htmlString)
         {
             this.HTMLSTRING = htmlString;
@@ -243,6 +281,14 @@ namespace VeeamHealthCheck.Functions.Reporting.Html.VBR
             this.HTMLSTRING += this.tables.AddJobInfoTable(this.SCRUB);
         }
 
+        /// <summary>
+        /// Generates individual job HTML files for detailed review
+        /// when exporting per-job artifacts is enabled.
+        /// </summary>
+        /// <remarks>
+        /// This operation depends on the current <c>scrub</c> setting
+        /// to determine whether sensitive fields are masked.
+        /// </remarks>
         public void IndividualJobHtmlBuilder()
         {
             this.tables.AddSessionsFiles(this.SCRUB);

@@ -161,15 +161,7 @@ namespace VeeamHealthCheck.Functions.Reporting.CsvHandlers
 
         public IEnumerable<CGlobalCsv> GetDynamicVboGlobal()
         {
-            var res = this.VboFileReader(this.vboGlobalCsv);
-            if (res != null)
-            {
-
-                return res.GetRecords<CGlobalCsv>();
-            }
-
-
-            return null;
+            return this.ReadVboCsvRecords<CGlobalCsv>(this.vboGlobalCsv);
         }
 
         public IEnumerable<dynamic> GetDynamicVboProxies()
@@ -194,32 +186,12 @@ namespace VeeamHealthCheck.Functions.Reporting.CsvHandlers
 
         public IEnumerable<CLocalRepos> GetDynamicVboRepo()
         {
-            // return VboGetDynamicCsvRecs(_vboRepositories, CVariables.vb365dir);
-            var res = this.VboFileReader(this.vboRepositories);
-            if (res != null)
-            {
-
-                return res.GetRecords<CLocalRepos>();
-            }
-
-
-            return null;
-
-            // return FileFinder(_vboRepositories, CVariables.vb365dir).GetRecords<CLocalRepos>();
+            return this.ReadVboCsvRecords<CLocalRepos>(this.vboRepositories);
         }
 
         public IEnumerable<CSecurityCsv> GetDynamicVboSec()
         {
-            // return FileFinder(_vboSecurity, CVariables.vb365dir).GetRecords<CSecurityCsv>();
-            var res = this.VboFileReader(this.vboSecurity);
-            if (res != null)
-            {
-
-                return res.GetRecords<CSecurityCsv>();
-            }
-
-
-            return null;
+            return this.ReadVboCsvRecords<CSecurityCsv>(this.vboSecurity);
         }
 
         public IEnumerable<dynamic> GetDynVboController()
@@ -414,28 +386,12 @@ namespace VeeamHealthCheck.Functions.Reporting.CsvHandlers
 
         public IEnumerable<CJobSessionCsvInfos> SessionCsvParser()
         {
-            var res = this.VbrFileReader(this.sessionPath);
-            if (res != null)
-            {
-
-                return res.GetRecords<CJobSessionCsvInfos>();
-            }
-
-
-            return null;
+            return this.ReadVbrCsvRecords<CJobSessionCsvInfos>(this.sessionPath);
         }
 
         public IEnumerable<CBnRCsvInfo> BnrCsvParser()
         {
-            var res = this.VbrFileReader(this.bnrInfoName);
-            if (res != null)
-            {
-
-                return res.GetRecords<CBnRCsvInfo>();
-            }
-
-
-            return null;
+            return this.ReadVbrCsvRecords<CBnRCsvInfo>(this.bnrInfoName);
         }
 
         public IEnumerable<CSobrExtentCsvInfos> SobrExtParser()
@@ -454,41 +410,17 @@ namespace VeeamHealthCheck.Functions.Reporting.CsvHandlers
 
         public IEnumerable<CWaitsCsv> WaitsCsvReader()
         {
-            var res = this.VbrFileReader(this.waits);
-            if (res != null)
-            {
-
-                return res.GetRecords<CWaitsCsv>();
-            }
-
-
-            return null;
+            return this.ReadVbrCsvRecords<CWaitsCsv>(this.waits);
         }
 
         public IEnumerable<CViProtected> ViProtectedReader()
         {
-            var res = this.VbrFileReader(this.ViProtected);
-            if (res != null)
-            {
-
-                return res.GetRecords<CViProtected>();
-            }
-
-
-            return null;
+            return this.ReadVbrCsvRecords<CViProtected>(this.ViProtected);
         }
 
         public IEnumerable<CViProtected> ViUnProtectedReader()
         {
-            var res = this.VbrFileReader(this.viUnprotected);
-            if (res != null)
-            {
-
-                return res.GetRecords<CViProtected>();
-            }
-
-
-            return null;
+            return this.ReadVbrCsvRecords<CViProtected>(this.viUnprotected);
         }
 
         public IEnumerable<CViProtected> HvProtectedReader()
@@ -879,6 +811,56 @@ namespace VeeamHealthCheck.Functions.Reporting.CsvHandlers
 
         #region localFunctions
         public void Dispose() { }
+
+        /// <summary>
+        /// Generic helper to read strongly-typed CSV records from a VBR file.
+        /// Consolidates the repetitive null-check pattern used throughout this class.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize CSV records into.</typeparam>
+        /// <param name="fileName">The CSV file name (without extension).</param>
+        /// <returns>Enumerable of typed records, or null if file not found.</returns>
+        public IEnumerable<T> ReadVbrCsvRecords<T>(string fileName)
+        {
+            var reader = this.VbrFileReader(fileName);
+            return reader?.GetRecords<T>();
+        }
+
+        /// <summary>
+        /// Generic helper to read strongly-typed CSV records from a VBO file.
+        /// Consolidates the repetitive null-check pattern used throughout this class.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize CSV records into.</typeparam>
+        /// <param name="fileName">The CSV file name (without extension).</param>
+        /// <returns>Enumerable of typed records, or null if file not found.</returns>
+        public IEnumerable<T> ReadVboCsvRecords<T>(string fileName)
+        {
+            var reader = this.VboFileReader(fileName);
+            return reader?.GetRecords<T>();
+        }
+
+        /// <summary>
+        /// Generic helper to read dynamic CSV records from a VBR file.
+        /// Returns empty enumerable instead of null for safe iteration.
+        /// </summary>
+        /// <param name="fileName">The CSV file name (without extension).</param>
+        /// <returns>Enumerable of dynamic records, or empty if file not found.</returns>
+        public IEnumerable<dynamic> ReadVbrDynamicRecords(string fileName)
+        {
+            var reader = this.VbrFileReader(fileName);
+            return reader?.GetRecords<dynamic>() ?? Enumerable.Empty<dynamic>();
+        }
+
+        /// <summary>
+        /// Generic helper to read dynamic CSV records from a VBO file.
+        /// Returns empty enumerable instead of null for safe iteration.
+        /// </summary>
+        /// <param name="fileName">The CSV file name (without extension).</param>
+        /// <returns>Enumerable of dynamic records, or empty if file not found.</returns>
+        public IEnumerable<dynamic> ReadVboDynamicRecords(string fileName)
+        {
+            var reader = this.VboFileReader(fileName);
+            return reader?.GetRecords<dynamic>() ?? Enumerable.Empty<dynamic>();
+        }
 
         private CsvReader VbrFileReader(string file)
         {

@@ -16,6 +16,7 @@ using VeeamHealthCheck.Functions.CredsWindow;
 using VeeamHealthCheck.Functions.Reporting.Html.VBR.VbrTables.Security;
 using VeeamHealthCheck.Shared;
 using VeeamHealthCheck.Shared.Logging;
+using VeeamHealthCheck.Startup;
 
 namespace VeeamHealthCheck.Functions.Collection
 {
@@ -231,7 +232,7 @@ namespace VeeamHealthCheck.Functions.Collection
                 MessageBox.Show(errorToShow, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
 
-            Environment.Exit(1);
+            throw new HealthCheckExitException(1, errorToShow);
         }
 
         private bool MfaTestPassed(PSInvoker p)

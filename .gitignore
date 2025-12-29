@@ -376,3 +376,9 @@ test_run_log.txt
 
 # VSCode working folder
 .vscode/
+
+# Documentation build output and source
+docs/
+
+# Agent prompts and configurations (internal use only)
+AI-Agent-Prompts/

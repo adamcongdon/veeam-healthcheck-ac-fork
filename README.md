@@ -50,6 +50,53 @@ This Windows utility is a lightweight executable that will generate an advanced 
 - Curated summary & Notes:
 	- SA curated description of each table. Including guidance, best practice, and recommendations with relevant documentation links.
 
+## 🏗️ Architecture
+
+This is a .NET 8 WPF Windows desktop application with the following data flow:
+
+```
+PowerShell Scripts → CSV Files → CsvParser → DataFormer → HtmlExporter → HTML/PDF/PPTX
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `CGlobals` | Global configuration state |
+| `HealthCheckOptions` | Modern configuration class with validation |
+| `HealthCheckContext` | Runtime state container |
+| `ProcessRunner` | Async process execution |
+| `CCsvParser` | CSV data reading with generic helpers |
+| `CDataFormer` | Data transformation for reports |
+| `CHtmlExporter` | HTML/PDF/PPTX report generation |
+
+### Build & Test
+
+```powershell
+# Build
+dotnet build vHC/HC.sln --configuration Debug
+
+# Run all tests
+dotnet test vHC/HC.sln --no-build --configuration Debug
+
+# Publish single-file executable
+dotnet publish vHC/HC_Reporting/VeeamHealthCheck.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/out
+```
+
+### CLI Options
+
+```
+/run              Execute health check via CLI
+/gui              Launch graphical user interface
+/days:<N>         Set reporting interval (7, 30, or 90 days)
+/pdf              Export report as PDF
+/pptx             Export report as PowerPoint
+/scrub:true       Anonymize sensitive data
+/security         Run security-focused assessment only
+/remote           Enable remote execution mode
+/host=<hostname>  Specify remote Veeam server
+```
+
 ## ✍ Contributions
 
 We welcome contributions from the community! We encourage you to create [issues](https://github.com/VeeamHub/veeam-healthcheck/issues/) for Bugs & Feature Requests and submit Pull Requests. For more detailed information, refer to our [Contributing Guide](CONTRIBUTING.md).

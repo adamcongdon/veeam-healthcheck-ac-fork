@@ -11,6 +11,75 @@ All contributions to this repository must be signed as described on our [Develop
 
 Please note we have a [Code of Conduct](#code-of-conduct). Please follow it in all your interactions with the project.
 
+## Development Guidelines
+
+### Test-First Approach
+
+We follow a test-first development methodology:
+
+1. **Write tests first** - Create unit tests before implementing features
+2. **Run tests locally** - Ensure all tests pass before submitting PRs
+3. **Add tests for bug fixes** - Every bug fix should include a regression test
+
+```powershell
+# Run all tests
+dotnet test vHC/HC.sln --configuration Debug
+
+# Run specific test class
+dotnet test vHC/VhcXTests/VhcXTests.csproj --filter "FullyQualifiedName~YourTestClass"
+```
+
+### Naming Conventions
+
+- **New classes**: Use standard PascalCase WITHOUT `C` prefix
+  - ✓ `HealthCheckOptions`, `ProcessRunner`, `LogSanitizer`
+  - ✗ `CHealthCheckOptions`, `CProcessRunner`
+- **Legacy classes**: Many use `C` prefix (e.g., `CGlobals`, `CDataFormer`) - do not add new ones
+- **Test files**: Use `*Tests.cs` suffix (e.g., `HealthCheckOptionsTests.cs`)
+
+### Modern Patterns
+
+When adding new features, prefer these patterns:
+
+```csharp
+// Configuration - use HealthCheckOptions
+var options = new HealthCheckOptions
+{
+    ReportType = ReportType.VbrFull,
+    ReportDays = 30,
+    Scrub = true
+};
+
+// Async operations - use ProcessRunner
+var runner = new ProcessRunner();
+var result = await runner.RunAsync(startInfo);
+
+// CSV reading - use generic helpers
+var records = CCsvParser.ReadVbrCsvRecords<MyType>("filename");
+```
+
+### Project Structure
+
+```
+vHC/
+├── HC_Reporting/           # Main application
+│   ├── Common/             # Shared utilities (CGlobals, logging)
+│   ├── Functions/
+│   │   ├── Analysis/       # Data analysis models
+│   │   ├── Collection/     # PowerShell data collection
+│   │   └── Reporting/      # HTML/PDF/PPTX generation
+│   ├── Startup/            # Entry point, CLI parsing
+│   └── Tools/              # Build scripts, PowerShell scripts
+└── VhcXTests/              # xUnit test project
+```
+
+### Pull Request Guidelines
+
+1. Keep PRs focused and small
+2. Include tests for new functionality
+3. Update documentation if adding new features
+4. Ensure the build passes before submitting
+
 ## Report Bugs/Feature Requests using the Github Issue Tracker
 
 We use GitHub's Issue Tracker to track bugs/feature Requests. Report a bug or feature request by [opening a new issue](https://github.com/VeeamHub/{repo-name}/issues/new/choose). It's that easy!

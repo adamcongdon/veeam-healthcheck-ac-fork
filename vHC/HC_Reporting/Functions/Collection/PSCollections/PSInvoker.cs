@@ -9,6 +9,8 @@ using System.Reflection;
 
 // using System.Management.Automation;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using VeeamHealthCheck.Functions.Collection.Security;
 using VeeamHealthCheck.Functions.CredsWindow;
 using VeeamHealthCheck.Shared;
@@ -194,8 +196,94 @@ namespace VeeamHealthCheck.Functions.Collection.PSCollections
             }
 
             this.log.Error("[PS] Script failed with all available PowerShell versions. Exiting program", false);
-            Environment.Exit(1);
-            return false;
+            throw new HealthCheckExitException(1, "Script failed with all available PowerShell versions");
+        }
+
+        /// <summary>
+        /// Async version of ExecutePsScriptWithFailover that doesn't block the UI thread.
+        /// </summary>
+        /// <param name="arguments">PowerShell arguments.</param>
+        /// <param name="useShellExecute">Whether to use shell execute.</param>
+        /// <param name="createNoWindow">Whether to create no window.</param>
+        /// <param name="redirectStdErr">Whether to redirect standard error.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>True if script executed successfully.</returns>
+        public async Task<bool> ExecutePsScriptWithFailoverAsync(
+            string arguments,
+            bool useShellExecute = false,
+            bool createNoWindow = true,
+            bool redirectStdErr = false,
+            CancellationToken cancellationToken = default)
+        {
+            if (this.preferredVersion == null)
+            {
+                this.log.Error("No PowerShell executable found on system.", false);
+                return false;
+            }
+
+            var runner = new ProcessRunner();
+
+            // Try PowerShell 7 first, then 5
+            foreach (var version in new[] { PowerShellVersion.PowerShell7, PowerShellVersion.PowerShell5 })
+            {
+                var exePath = this.GetPowerShellExecutable(version);
+                if (string.IsNullOrEmpty(exePath))
+                {
+                    this.log.Debug($"[PS] {version} not found on system, skipping...", false);
+                    continue;
+                }
+
+                try
+                {
+                    var startInfo = this.CreatePsStartInfo(arguments, useShellExecute, createNoWindow, redirectStdErr, version);
+
+                    this.log.Info($"[PS] Starting async script execution with {version}...", false);
+
+                    var result = await runner.RunAsync(startInfo, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                    this.log.Info($"[PS] Async script execution completed. Elapsed: {result.ElapsedMilliseconds}ms", false);
+
+                    if (!string.IsNullOrWhiteSpace(result.StandardOutput))
+                    {
+                        this.log.Debug($"[PS][STDOUT] {result.StandardOutput}", false);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(result.StandardError))
+                    {
+                        this.log.Debug($"[PS][STDERR] {result.StandardError}", false);
+                    }
+
+                    this.log.Debug("Exit Code: " + result.ExitCode);
+
+                    if (result.Success)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        this.log.Warning($"[PS] Script failed with {version}. Exit code: {result.ExitCode}", false);
+                        return false;
+                    }
+                }
+                catch (TimeoutException ex)
+                {
+                    this.log.Error($"[PS] Script execution timeout with {version}: {ex.Message}", false);
+                }
+                catch (OperationCanceledException)
+                {
+                    this.log.Warning($"[PS] Script execution cancelled with {version}.", false);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    this.log.Error($"[PS] Exception running async script with {version}: {ex.Message}", false);
+                }
+
+                return false;
+            }
+
+            this.log.Error("[PS] Script failed with all available PowerShell versions. Exiting program", false);
+            throw new HealthCheckExitException(1, "Script failed with all available PowerShell versions");
         }
 
         public bool Invoke()
@@ -212,6 +300,25 @@ namespace VeeamHealthCheck.Functions.Collection.PSCollections
             }
 
             // RunVbrSessionCollection();
+
+            return res;
+        }
+
+        /// <summary>
+        /// Async version of Invoke that doesn't block the UI thread.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>True if execution was successful.</returns>
+        public async Task<bool> InvokeAsync(CancellationToken cancellationToken = default)
+        {
+            this.TryUnblockFiles();
+
+            bool res = await this.RunVbrConfigCollectAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!res)
+            {
+                return false;
+            }
 
             return res;
         }
@@ -257,11 +364,11 @@ namespace VeeamHealthCheck.Functions.Collection.PSCollections
                 };
 
                 // Log the command with masked password
-                CGlobals.Logger.Info("[TestMfa] Arguments: " + startInfo.Arguments.Replace(escapedPassword, "****"));
+                CGlobals.Logger.Info("[TestMfa] Arguments: " + LogSanitizer.SanitizeProcessArguments(startInfo.Arguments, escapedPassword));
 
                 this.log.Info($"[TestMfa] Creating ProcessStartInfo for MFA test:");
                 this.log.Info($"[TestMfa] FileName: {startInfo.FileName}");
-                this.log.Info($"[TestMfa] Arguments: {startInfo.Arguments}");
+                this.log.Info($"[TestMfa] Arguments: {LogSanitizer.SanitizeProcessArguments(startInfo.Arguments, escapedPassword)}");
                 this.log.Info($"[TestMfa] RedirectStandardOutput: {startInfo.RedirectStandardOutput}");
                 this.log.Info($"[TestMfa] RedirectStandardError: {startInfo.RedirectStandardError}");
                 this.log.Info($"[TestMfa] UseShellExecute: {startInfo.UseShellExecute}");
@@ -344,6 +451,25 @@ namespace VeeamHealthCheck.Functions.Collection.PSCollections
             return success;
         }
 
+        /// <summary>
+        /// Async version of RunVbrConfigCollect that doesn't block the UI thread.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>True if all scripts executed successfully.</returns>
+        public async Task<bool> RunVbrConfigCollectAsync(CancellationToken cancellationToken = default)
+        {
+            bool success = await this.ExecutePsScriptAsync(this.VbrConfigStartInfo(), cancellationToken).ConfigureAwait(false);
+
+            if (success)
+            {
+                success = await this.ExecutePsScriptAsync(this.VbrNasStartInfo(), cancellationToken).ConfigureAwait(false);
+            }
+
+            success = await this.ExecutePsScriptAsync(this.VbrSessionStartInfo(), cancellationToken).ConfigureAwait(false);
+
+            return success;
+        }
+
         public bool ExecutePsScript(ProcessStartInfo startInfo)
         {
             var res1 = new Process();
@@ -405,6 +531,79 @@ namespace VeeamHealthCheck.Functions.Collection.PSCollections
 
             this.log.Info(CMessages.PsVbrConfigProcIdDone, false);
             return !failed;
+        }
+
+        /// <summary>
+        /// Async version of ExecutePsScript that doesn't block the UI thread.
+        /// </summary>
+        /// <param name="startInfo">The process start info.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>True if script executed successfully.</returns>
+        public async Task<bool> ExecutePsScriptAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken = default)
+        {
+            var runner = new ProcessRunner();
+
+            try
+            {
+                this.log.Info("[PS] Async script execution starting...", false);
+
+                var result = await runner.RunAsync(startInfo, timeout: TimeSpan.FromMinutes(5), cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+
+                this.log.Info($"[PS] Async script execution completed. Elapsed: {result.ElapsedMilliseconds}ms", false);
+
+                // Log stdout if present
+                if (!string.IsNullOrWhiteSpace(result.StandardOutput))
+                {
+                    this.log.Debug($"[PS][STDOUT] {result.StandardOutput}", false);
+                }
+
+                // Process stderr
+                List<string> errorarray = new();
+                bool failed = false;
+
+                if (!string.IsNullOrWhiteSpace(result.StandardError))
+                {
+                    string[] errLines = result.StandardError.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (string errString in errLines)
+                    {
+                        var errResults = this.ParseErrors(errString);
+                        if (!errResults.Success)
+                        {
+                            this.log.Error(errString, false);
+                            this.log.Error(errResults.Message);
+                            failed = true;
+                        }
+
+                        errorarray.Add(errString);
+                    }
+                }
+
+                if (errorarray.Count > 0)
+                {
+                    this.PushPsErrorsToMainLog(errorarray);
+                }
+
+                // Check exit code
+                if (!result.Success)
+                {
+                    this.log.Error($"[PS] Script failed with exit code: {result.ExitCode}", false);
+                    failed = true;
+                }
+
+                this.log.Info(CMessages.PsVbrConfigProcIdDone, false);
+                return !failed;
+            }
+            catch (TimeoutException)
+            {
+                this.log.Error("[PS] Async script execution timeout after 5 minutes", false);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                this.log.Warning("[PS] Async script execution was cancelled", false);
+                throw;
+            }
         }
 
         private void PushPsErrorsToMainLog(List<string> errors)
@@ -623,7 +822,7 @@ namespace VeeamHealthCheck.Functions.Collection.PSCollections
                 }
             }
 
-            this.log.Debug(this.logStart + "PS ArgString = " + argString, false);
+            this.log.Debug(this.logStart + "PS ArgString = " + LogSanitizer.MaskPowerShellPasswords(argString), false);
 
             // Use the same PowerShell version failover logic as ExecutePsScriptWithFailover
             // Prefer PowerShell 7, then 5, else throw

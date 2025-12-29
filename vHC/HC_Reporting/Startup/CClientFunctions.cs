@@ -15,6 +15,14 @@ using VeeamHealthCheck.Shared.Logging;
 
 namespace VeeamHealthCheck.Startup
 {
+    /// <summary>
+    /// Orchestrates client-side operations including pre-run checks,
+    /// data collection, analysis, and UI interactions.
+    /// </summary>
+    /// <remarks>
+    /// Provides CLI and GUI flows, hotfix detection support, and
+    /// environment validation such as admin privilege checks.
+    /// </remarks>
     internal class CClientFunctions : IDisposable
     {
         private readonly CLogger LOG = CGlobals.Logger;
@@ -43,6 +51,10 @@ namespace VeeamHealthCheck.Startup
             CGlobals.Logger.Info("[GUI]\tOpening KB Link...done!");
         }
 
+        /// <summary>
+        /// Ensures required privileges and environment preconditions
+        /// before starting collections and analysis.
+        /// </summary>
         public void PreRunCheck()
         {
             CGlobals.Logger.Info("Starting Admin Check", false);
@@ -74,7 +86,7 @@ namespace VeeamHealthCheck.Startup
                         if (result == MessageBoxResult.No)
                         {
                             CGlobals.Logger.Info("User declined to run without admin privileges", false);
-                            Environment.Exit(0);
+                            throw new HealthCheckExitException(0, "User declined to run without admin privileges");
                         }
                         
                         // User chose to continue without admin
@@ -97,7 +109,7 @@ namespace VeeamHealthCheck.Startup
                         MessageBox.Show(message);
                     }
                     CGlobals.Logger.Error(message, false);
-                    Environment.Exit(0);
+                    throw new HealthCheckExitException(0, message);
                 }
                 // else: Remote execution - no admin required, continue normally
             }
@@ -127,11 +139,18 @@ namespace VeeamHealthCheck.Startup
                         MessageBox.Show(msg, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
 
-                    Environment.Exit(0);
+                    throw new HealthCheckExitException(0, msg);
                 }
             }
         }
 
+        /// <summary>
+        /// Detects installed Veeam products to select execution mode.
+        /// </summary>
+        /// <returns>
+        /// Title string describing detected mode, or <c>"fail"</c> when
+        /// neither VB365 nor VBR is detected.
+        /// </returns>
         public string ModeCheck()
         {
             CGlobals.Logger.Info("Checking processes to determine execution mode..", false);
@@ -195,6 +214,10 @@ namespace VeeamHealthCheck.Startup
             }
         }
 
+        /// <summary>
+        /// Prompts the user to accept terms in GUI mode.
+        /// </summary>
+        /// <returns><c>true</c> if accepted; otherwise <c>false</c>.</returns>
         public bool AcceptTerms()
         {
             string message = VbrLocalizationHelper.GuiAcceptText;
@@ -211,6 +234,11 @@ namespace VeeamHealthCheck.Startup
             }
         }
 
+        /// <summary>
+        /// Runs the primary workflow: log settings, start collections,
+        /// and perform analysis/report generation.
+        /// </summary>
+        /// <returns>Exit code from analysis workflow.</returns>
         public int StartPrimaryFunctions()
         {
             // Single server execution - CGlobals.VBRServerName should already be set from the selected server in the UI
@@ -219,6 +247,11 @@ namespace VeeamHealthCheck.Startup
             return this.StartAnalysis();
         }
 
+        /// <summary>
+        /// Launches hotfix detection workflow using collected logs.
+        /// </summary>
+        /// <param name="path">Local path for logs and processing.</param>
+        /// <param name="remoteServer">Optional remote server target.</param>
         public void RunHotfixDetector(string path, string remoteServer)
         {
             this.LOG.Info(this.logStart + "Starting Hotfix Detector", false);
@@ -251,6 +284,11 @@ namespace VeeamHealthCheck.Startup
             hfd.Run();
         }
 
+        /// <summary>
+        /// Validates or creates the specified directory path for outputs.
+        /// </summary>
+        /// <param name="path">Target directory path.</param>
+        /// <returns><c>true</c> if usable; otherwise <c>false</c>.</returns>
         public bool VerifyPath(string path)
         {
             if (String.IsNullOrEmpty(path))
@@ -342,6 +380,11 @@ namespace VeeamHealthCheck.Startup
             return res;
         }
 
+        /// <summary>
+        /// CLI entry to execute collections and analysis to an output path.
+        /// </summary>
+        /// <param name="targetForOutput">Destination directory for artifacts.</param>
+        /// <returns>Exit code.</returns>
         public int CliRun(string targetForOutput)
         {
             CGlobals.Logger.Info("Setting openexplorer & openhtml to false for CLI execution", false);
@@ -366,6 +409,10 @@ namespace VeeamHealthCheck.Startup
             return this.StartPrimaryFunctions();
         }
 
+        /// <summary>
+        /// Reads VBR version and configures dependent behavior such as
+        /// PowerShell version for remote connections.
+        /// </summary>
         public void GetVbrVersion()
         {
             try
@@ -417,6 +464,10 @@ namespace VeeamHealthCheck.Startup
             }
         }
 
+        /// <summary>
+        /// Ensures the globally configured output path exists and is writable.
+        /// </summary>
+        /// <returns><c>true</c> if path is ready; otherwise <c>false</c>.</returns>
         public bool VerifyPath()
         {
             try
@@ -437,6 +488,10 @@ namespace VeeamHealthCheck.Startup
             }
         }
 
+        /// <summary>
+        /// Performs report mode selection and dispatches import/analysis.
+        /// </summary>
+        /// <returns>Exit code from mode executor.</returns>
         public int Import()
         {
             CReportModeSelector cMode = new();
@@ -458,6 +513,10 @@ namespace VeeamHealthCheck.Startup
                 );
         }
 
+        /// <summary>
+        /// Writes a structured UI action log entry.
+        /// </summary>
+        /// <param name="message">Action description.</param>
         public void LogUIAction(string message)
         {
             string s = string.Format("[Veeam.HC.UI]\tSelected:" + message);
@@ -478,6 +537,10 @@ namespace VeeamHealthCheck.Startup
             }
         }
 
+        /// <summary>
+        /// Logs tool version and supplied command-line arguments.
+        /// </summary>
+        /// <param name="args">Arguments to record.</param>
         public void LogVersionAndArgs(string[] args)
         {
             this.WriteVhcVersion();
