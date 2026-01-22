@@ -99,12 +99,12 @@ jobs:
 
     - name: VirusTotal Scan
       id: virustotal
-      if: ${{ !inputs.skip_virustotal && vars.VT_API_KEY != '' }}
+      if: ${{ !inputs.skip_virustotal && secrets.VIRUSTOTAL_API_KEY != '' }}
       shell: pwsh
       run: |
         $version = "${{ steps.get_version.outputs.version }}"
         $zipPath = "publish/VeeamHealthCheck-$version.zip"
-        $apiKey = "${{ vars.VT_API_KEY }}"
+        $apiKey = "${{ secrets.VIRUSTOTAL_API_KEY }}"
         $headers = @{ "x-apikey" = $apiKey }
         $form = @{ file = Get-Item $zipPath }
 
@@ -154,7 +154,7 @@ jobs:
 
     - name: Set VirusTotal defaults
       id: vt_defaults
-      if: ${{ inputs.skip_virustotal || vars.VT_API_KEY == '' }}
+      if: ${{ inputs.skip_virustotal || secrets.VIRUSTOTAL_API_KEY == '' }}
       shell: pwsh
       run: |
         if ("${{ inputs.skip_virustotal }}" -eq "true") {
